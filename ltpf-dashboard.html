@@ -1,1 +1,581 @@
-<!DOCTYPE html>\n<html lang="en">\n<head>\n    <meta charset="UTF-8">\n    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n    <title>LTPF Portfolio Dashboard</title>\n    <style>\n        body {\n            font-family: Arial, sans-serif;\n            margin: 0;\n            padding: 0;\n            background-color: #f4f4f4;\n        }\n        .container {\n            width: 80%;\n            margin: auto;\n            overflow: hidden;\n        }\n        header {\n            background: #35424a;\n            color: #ffffff;\n            padding: 10px 0;\n            text-align: center;\n        }\n        .dashboard {\n            display: flex;\n            flex-wrap: wrap;\n            justify-content: space-around;\n            padding: 20px;\n            background: #ffffff;\n            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);\n        }\n        .card {\n            background: #e6e6e6;\n            margin: 10px;\n            padding: 20px;\n            flex: 1 1 calc(30% - 40px);\n            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);\n            border-radius: 8px;\n        }\n        .card h3 {\n            margin: 0;\n        }\n    </style>\n</head>\n<body>\n    <header>\n        <h1>LTPF Portfolio Dashboard</h1>\n    </header>\n    <div class="container">\n        <div class="dashboard" id="dashboard">\n            <!-- Cards will be dynamically added here -->\n        </div>\n    </div>\n    <script>\n        document.addEventListener('DOMContentLoaded', function() {\n            const dashboard = document.getElementById('dashboard');\n            const data = [\n                { title: 'Project 1', description: 'Description for project 1', date: '2026-01-01' },\n                { title: 'Project 2', description: 'Description for project 2', date: '2026-02-01' },\n                { title: 'Project 3', description: 'Description for project 3', date: '2026-03-01' }\n            ];\n            data.forEach(project => {\n                const card = document.createElement('div');\n                card.className = 'card';\n                card.innerHTML = `\n                    <h3>${project.title}</h3>\n                    <p>${project.description}</p>\n                    <p><strong>Date:</strong> ${project.date}</p>\n                `;\n                dashboard.appendChild(card);\n            });\n        });\n    </script>\n</body>\n</html>\n
+import { useState, useEffect, useCallback } from "react";
+
+const INR_DEFAULT = 86.5;
+const STORAGE_KEY = "ltpf_apr20";
+
+const ASSETS = [
+  {id:"hdfc",n:"HDFC Bank",t:"HDFCBANK",b:"NSE",c:"₹",cmp:784.20,low:680,high:900,avg:876.69,qty:71,target:2600,tb:600,moat:5,gr:4,core:1,frozen:1,fn:"🔒 FROZEN · Q4 beat ✅ · NPA 1.15% · div ₹13"},
+  {id:"hal",n:"HAL",t:"HAL",b:"NSE",c:"₹",cmp:4267.80,low:3000,high:4200,avg:4364.00,qty:5,target:8000,tb:2500,moat:4,gr:5,core:1,buyAt:3700},
+  {id:"cdsl",n:"CDSL",t:"CDSL",b:"NSE",c:"₹",cmp:1306.30,low:950,high:1300,avg:1331.31,qty:67,target:4000,tb:800,moat:5,gr:5,core:1,buyAt:1100,note:"P1B#3 · GTTs ₹1200+₹1150+₹1100 · BLACKOUT APR 24 🔥"},
+  {id:"bel",n:"BEL",t:"BEL",b:"NSE",c:"₹",cmp:440.45,low:330,high:465,avg:369.91,qty:108,target:900,tb:260,moat:4,gr:4,core:1,frozen:1,fn:"🔒 Cap ₹40K · hold forever"},
+  {id:"kaynes",n:"Kaynes Tech",t:"KAYNES",b:"NSE",c:"₹",cmp:4276.40,low:2800,high:3900,avg:3471.05,qty:18,target:18000,tb:2400,moat:4,gr:5,core:1,buyAt:3300},
+  {id:"trent",n:"Trent",t:"TRENT",b:"NSE",c:"₹",cmp:4226.40,low:3000,high:4200,avg:3457.10,qty:10,target:8500,tb:2500,moat:4,gr:5,core:1,buyAt:3250,rot:"GTT 4@₹3250"},
+  {id:"nvda",n:"NVIDIA",t:"NVDA",b:"US",c:"$",cmp:200.22,low:155,high:205,avg:178.61,qty:10.044946,target:450,tb:90,moat:5,gr:5,core:1,frozen:1,fn:"P3 ✅ COMPLETE · hold forever"},
+  {id:"tsmc",n:"TSMC",t:"TSM",b:"US",c:"$",cmp:365.80,low:270,high:380,avg:297.55,qty:0.627532,target:650,tb:150,moat:5,gr:5,core:1,buyAt:315},
+  {id:"googl",n:"Alphabet",t:"GOOGL",b:"US",c:"$",cmp:339.72,low:255,high:335,avg:241.72,qty:0.441539,target:600,tb:130,moat:5,gr:5,core:1,buyAt:315,note:"P1B#2 · GTT $130@$315"},
+  {id:"meta",n:"Meta",t:"META",b:"US",c:"$",cmp:684.58,low:490,high:680,avg:582.61,qty:0.358956,target:1300,tb:280,moat:4,gr:5,core:1,buyAt:645,note:"P1B#1 · GTTs $645+$665 · blackout Apr 26"},
+  {id:"amzn",n:"Amazon",t:"AMZN",b:"US",c:"$",cmp:253.80,low:165,high:230,avg:217.81,qty:0.443187,target:450,tb:100,moat:5,gr:5,core:1,buyAt:190},
+  {id:"msft",n:"Microsoft",t:"MSFT",b:"US",c:"$",cmp:424.58,low:330,high:440,avg:429.89,qty:1.208604,target:750,tb:200,moat:5,gr:4,core:1,frozen:1,fn:"🔒 Cap ₹45K · hold"},
+  {id:"visa",n:"Visa",t:"VISA",b:"US",c:"$",cmp:316.81,low:255,high:340,avg:314.78,qty:0.940312,target:550,tb:180,moat:5,gr:4,core:1,frozen:1,fn:"🔒 Cap ₹26K · hold"},
+  {id:"eth",n:"Ethereum",t:"ETH",b:"CRYPTO",c:"₹",cmp:214825,low:140000,high:210000,avg:196513,qty:1.14681,target:1870000,tb:80000,moat:4,gr:4,core:1,buyAt:200000,note:"2 GTTs ₹208K+₹200K · gap 0.853 ETH"},
+  {id:"btc",n:"Bitcoin",t:"BTC",b:"CRYPTO",c:"₹",cmp:7009495,low:4800000,high:6000000,avg:0,qty:0,target:46200000,tb:2000000,moat:5,gr:5,core:1,buyAt:6000000},
+  {id:"motilal",n:"Motilal MC",t:"MOTILAL",b:"MF",c:"₹",cmp:96.07,avg:111.11,qty:981.39,target:300,moat:4,gr:5,core:1,inv:114765,cv:94258},
+  {id:"mirae",n:"Mirae ELSS",t:"MIRAE",b:"MF",c:"₹",cmp:51.52,avg:51.50,qty:1733.42,target:150,moat:4,gr:4,core:1,frozen:1,inv:89268,cv:89268,fn:"🔒 HOLD FOREVER · tax saving"},
+  {id:"ppfas",n:"Parag Parikh",t:"PPFAS",b:"MF",c:"₹",cmp:87.71,avg:91.40,qty:578.64,target:260,moat:5,gr:4,core:1,inv:57997,cv:56648},
+  {id:"goldbees",n:"Gold BeES",t:"GOLDBEES",b:"ETF",c:"₹",cmp:121.06,avg:65.92,qty:958,target:250,moat:3,gr:2,core:1,frozen:1,fn:"🛡️ HEDGE · hold forever"},
+  {id:"niftybees",n:"Nifty BeES",t:"NIFTYBEES",b:"ETF",c:"₹",cmp:262.07,avg:267.99,qty:164,target:500,moat:5,gr:3,core:1},
+  {id:"silverbees",n:"Silver BeES",t:"SILVERBEES",b:"ETF",c:"₹",cmp:219.90,avg:103.36,qty:55,target:450,moat:3,gr:3,core:1,free:1,rot:"🎁 FREE · ride to ₹450"},
+  {id:"bankbees",n:"Bank BeES",t:"BANKBEES",b:"ETF",c:"₹",cmp:550.86,avg:534.91,qty:37,target:900,moat:4,gr:3,core:0,rot:"Hold 2x"},
+  {id:"itbees",n:"IT BeES",t:"ITBEES",b:"ETF",c:"₹",cmp:32.16,avg:39.69,qty:755,target:70,moat:3,gr:3,core:0,rot:"Hold 2x"},
+  {id:"pharmabees",n:"Pharma BeES",t:"PHARMABEES",b:"ETF",c:"₹",cmp:23.20,avg:20.79,qty:291,target:50,moat:3,gr:3,core:0,rot:"Hold 2x"},
+  {id:"nationalum",n:"Natl. Aluminium",t:"NATIONALUM",b:"NSE",c:"₹",cmp:438.75,avg:185.37,qty:78,target:520,tb:120,moat:2,gr:2,core:0,free:1,rot:"🎁 FREE · ride to ₹520"},
+  {id:"hindcopper",n:"Hind. Copper",t:"HINDCOPPER",b:"NSE",c:"₹",cmp:569.60,avg:260.83,qty:70,target:600,tb:160,moat:2,gr:2,core:0,free:1,rot:"🎁 FREE · ride to ₹600"},
+  {id:"tmcv",n:"Tata Motors CV",t:"TMCV",b:"NSE",c:"₹",cmp:439.10,avg:238.21,qty:227,target:600,tb:150,moat:3,gr:3,core:0,rot:"+84% near 2x"},
+  {id:"manappuram",n:"Manappuram",t:"MANAPPURAM",b:"NSE",c:"₹",cmp:268.90,avg:163.35,qty:200,target:350,tb:100,moat:3,gr:3,core:0,rot:"+64.6%"},
+  {id:"southbank",n:"South Indian Bk",t:"SOUTHBANK",b:"NSE",c:"₹",cmp:38.93,avg:26.86,qty:722,target:60,tb:18,moat:2,gr:2,core:0,rot:"+44.9%"},
+  {id:"ktkbank",n:"Karnataka Bank",t:"KTKBANK",b:"NSE",c:"₹",cmp:246.23,avg:191.74,qty:293,target:350,tb:130,moat:2,gr:2,core:0,rot:"+28.4%"},
+  {id:"nmdc",n:"NMDC",t:"NMDC",b:"NSE",c:"₹",cmp:89.78,avg:71.95,qty:454,target:140,tb:50,moat:2,gr:2,core:0,rot:"+24.8%"},
+  {id:"drreddy",n:"Dr Reddys",t:"DRREDDY",b:"NSE",c:"₹",cmp:1235.70,avg:1233.31,qty:81,target:2200,tb:900,moat:3,gr:3,core:0,rot:"+0.19%"},
+  {id:"bdl",n:"BDL",t:"BDL",b:"NSE",c:"₹",cmp:1380.70,avg:1497.38,qty:21,target:2500,tb:900,moat:3,gr:3,core:0,rot:"-7.8%"},
+  {id:"grse",n:"GRSE",t:"GRSE",b:"NSE",c:"₹",cmp:2712.00,avg:2702.69,qty:21,target:5000,tb:1500,moat:3,gr:3,core:0,rot:"+0.34%"},
+  {id:"natcopharm",n:"Natco Pharma",t:"NATCOPHARM",b:"NSE",c:"₹",cmp:1119.70,avg:959.14,qty:75,target:2000,tb:700,moat:3,gr:3,core:0,rot:"+16.7% 50% sold"},
+  {id:"irctc",n:"IRCTC",t:"IRCTC",b:"NSE",c:"₹",cmp:564.90,avg:627.93,qty:22,target:1000,tb:400,moat:4,gr:3,core:0,rot:"-10%"},
+  {id:"beml",n:"BEML",t:"BEML",b:"NSE",c:"₹",cmp:1772.40,avg:1834.17,qty:7,target:3500,tb:1000,moat:3,gr:3,core:0,rot:"-3.4%"},
+  {id:"tcs",n:"TCS",t:"TCS",b:"NSE",c:"₹",cmp:2581.50,avg:3060.59,qty:11,target:5000,tb:2000,moat:4,gr:3,core:0,rot:"-15.6%"},
+  {id:"recltd",n:"REC Ltd",t:"RECLTD",b:"NSE",c:"₹",cmp:373.30,avg:424.70,qty:30,target:700,tb:250,moat:3,gr:3,core:0,rot:"-12.1%"},
+  {id:"itc",n:"ITC",t:"ITC",b:"NSE",c:"₹",cmp:306.80,avg:387.59,qty:332,target:600,tb:250,moat:4,gr:2,core:0,rot:"-20.8%"},
+  {id:"anantraj",n:"Anant Raj",t:"ANANTRAJ",b:"NSE",c:"₹",cmp:513.40,avg:602.06,qty:134,target:1000,tb:300,moat:3,gr:3,core:0,rot:"-14.7%"},
+  {id:"suzlon",n:"Suzlon",t:"SUZLON",b:"NSE",c:"₹",cmp:52.93,avg:57.55,qty:400,target:100,tb:30,moat:2,gr:3,core:0,rot:"-8%"},
+  {id:"pcbl",n:"PCBL",t:"PCBL",b:"NSE",c:"₹",cmp:285.41,avg:372.63,qty:106,target:600,tb:200,moat:2,gr:2,core:0,rot:"-23.4%"},
+  {id:"rvnl",n:"RVNL",t:"RVNL",b:"NSE",c:"₹",cmp:303.06,avg:427.37,qty:35,target:700,tb:250,moat:3,gr:3,core:0,rot:"-29%"},
+  {id:"itchotels",n:"ITC Hotels",t:"ITCHOTELS",b:"NSE",c:"₹",cmp:162.52,avg:485.18,qty:40,target:500,tb:100,moat:3,gr:3,core:0,rot:"-66.5% demerger"},
+  {id:"tmpv",n:"Tata Motors",t:"TMPV",b:"NSE",c:"₹",cmp:360.10,avg:500.41,qty:267,target:800,tb:300,moat:3,gr:3,core:0,rot:"-28% EV thesis"},
+  {id:"idfcfirstb",n:"IDFC First Bk",t:"IDFCFIRSTB",b:"NSE",c:"₹",cmp:68.53,avg:65.41,qty:342,target:120,tb:40,moat:2,gr:2,core:0,rot:"+4.77% 50% sold"},
+  {id:"mstr",n:"MicroStrategy",t:"MSTR",b:"US",c:"$",cmp:165.10,avg:236.17,qty:1.162832,target:500,tb:80,moat:2,gr:3,core:0,rot:"-30%"},
+];
+
+const W={US:2.0,CRYPTO:1.5,NSE:1.2};
+const GR={trent:1,kaynes:1,cdsl:1,nvda:1,googl:1,meta:1,amzn:1,tsmc:1,eth:1,btc:1};
+const BE={kaynes:1,cdsl:1,nvda:1,googl:1,meta:1,eth:1,btc:1};
+const P3={eth:1,nvda:1,kaynes:1};
+const P3T={eth:2.0,nvda:10,kaynes:25};
+const SC={hdfc:55000,hal:25000,bel:40000,msft:45000,visa:26000};
+const HG={goldbees:1,mirae:1};
+const BDOT={US:"🇺🇸",CRYPTO:"₿",NSE:"🇮🇳",MF:"🏦",ETF:"📊"};
+const BLAB={US:"US Stocks",CRYPTO:"Crypto",NSE:"NSE Stocks",MF:"Mutual Funds",ETF:"ETFs"};
+const BKTS=["US","CRYPTO","NSE","MF","ETF"];
+const WIN={US:"Jul 24 2026",CRYPTO:"Oct 2026"};
+
+const fi=v=>{
+  if(v==null||isNaN(v))return"—";
+  const a=Math.abs(v);
+  if(a>=1e7)return`₹${(v/1e7).toFixed(2)}Cr`;
+  if(a>=1e5)return`₹${(v/1e5).toFixed(2)}L`;
+  if(a>=1000)return`₹${Number(v).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+  return`₹${v.toFixed(2)}`;
+};
+const fc=(c,v)=>{
+  if(v==null||isNaN(v))return"—";
+  return c==="$"?`$${Number(v).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`:fi(v);
+};
+const toI=(a,v,r)=>a.c==="$"?v*r:v;
+const pct=(a,b)=>b>0?(a-b)/b*100:0;
+
+const calcSig=(a,cmp,tr,inr)=>{
+  if(!W[a.b])return{tag:"HOLD",col:"#444",sc:0,blocked:1,reason:"MF/ETF"};
+  if(HG[a.id])return{tag:"🛡️ HEDGE",col:"#ffd700",sc:0,blocked:1,reason:a.fn||"Hedge"};
+  if(a.free)return{tag:"🎁 FREE",col:"#ffd700",sc:0,blocked:1,reason:"Cost recovered"};
+  if(a.tb&&cmp<a.tb)return{tag:"THESIS ⚠",col:"#ef4444",sc:0,blocked:1,reason:`Below ${fc(a.c,a.tb)}`};
+  if(tr>=3)return{tag:"FULL",col:"#333",sc:0,blocked:1,reason:"3/3 loaded"};
+  if(P3[a.id]&&P3T[a.id]&&a.qty>=P3T[a.id])return{tag:"P3 ✅",col:"#4a5568",sc:0,blocked:1,reason:"Target complete"};
+  const inv=a.inv!=null?a.inv:(a.qty>0?toI(a,a.avg,inr)*a.qty:0);
+  if(a.frozen){
+    const cap=SC[a.id]||55000;
+    if(inv<cap*0.5&&cmp<=(a.high||0)){
+      const sc=Math.round((cmp<=(a.low||0)?60:cmp<=((a.low||0)+(a.high||0))/2?40:25)*(W[a.b]||1));
+      return{tag:"WATCH",col:"#ffd700",sc,blocked:0,reason:`${Math.round(inv/cap*100)}% of cap`};
+    }
+    return{tag:"🔒 HOLD",col:"#60a5fa",sc:0,blocked:1,reason:a.fn||"Cap reached"};
+  }
+  const lo=a.low||0,hi=a.high||0,mid=(lo+hi)/2,gap=Math.max(0,(lo-cmp)/lo*100);
+  let base,tag,col;
+  if(cmp<=lo){base=110+a.moat*12+a.gr*10+gap*2;tag="STRONG BUY";col="#00ff88";}
+  else if(cmp<=mid){base=70+a.moat*8+a.gr*6;tag="BUY";col="#4ade80";}
+  else if(cmp<=hi){base=45+a.moat*4+a.gr*3;tag="ACCUM";col="#ffd700";}
+  else if(cmp<=hi*1.06){base=15;tag="PREMIUM";col="#f97316";}
+  else return{tag:"WAIT",col:"#ef4444",sc:0,blocked:1,reason:"Above zone"};
+  const aB=a.avg>0?(pct(a.avg,cmp)>10?30:pct(a.avg,cmp)>5?20:pct(a.avg,cmp)>0?10:0):0;
+  const uB=(a.target>0?pct(a.target,cmp):0)>300?40:(a.target>0?pct(a.target,cmp):0)>200?30:(a.target>0?pct(a.target,cmp):0)>100?20:10;
+  const gB=GR[a.id]?20:0;
+  const wB=a.b==="US"?25:a.b==="CRYPTO"?15:0;
+  const bM=P3[a.id]?1.5:BE[a.id]?1.3:1.0;
+  const tM=tr===2?0.7:1.0;
+  const sc=Math.round((base+aB+uB+gB+wB)*tM*(W[a.b]||1)*bM);
+  return{tag,col,sc,blocked:0};
+};
+
+export default function App(){
+  const[cmps,setCmps]=useState({});
+  const[tr,setTr]=useState({});
+  const[inr,setInr]=useState(INR_DEFAULT);
+  const[tab,setTab]=useState("signal");
+  const[exp,setExp]=useState(null);
+  const[edit,setEdit]=useState(null);
+  const[ev,setEv]=useState("");
+  const[loaded,setLoaded]=useState(false);
+  const[catOpen,setCatOpen]=useState({});
+  const[blkOpen,setBlkOpen]=useState(false);
+
+  useEffect(()=>{
+    let done=false;
+    const fin=()=>{if(!done){done=true;setLoaded(true);}};
+    const tm=setTimeout(fin,1500);
+    (async()=>{
+      try{
+        const r=await Promise.race([
+          window.storage?window.storage.get(STORAGE_KEY):Promise.resolve(null),
+          new Promise(res=>setTimeout(()=>res(null),1200))
+        ]);
+        if(r){const d=JSON.parse(r.value);if(d.c)setCmps(d.c);if(d.t)setTr(d.t);if(d.i)setInr(d.i);}
+      }catch{}
+      clearTimeout(tm);fin();
+    })();
+  },[]);
+
+  const save=useCallback(async(c,t,i)=>{
+    try{if(window.storage)await window.storage.set(STORAGE_KEY,JSON.stringify({c,t,i}));}catch{}
+  },[]);
+
+  const saveCmp=(id,raw)=>{
+    const v=parseFloat(String(raw).replace(/,/g,""));
+    if(!isNaN(v)&&v>0){const u={...cmps,[id]:v};setCmps(u);save(u,tr,inr);}
+  };
+  const bumTr=(id,d)=>{
+    const cur=tr[id]??(ASSETS.find(a=>a.id===id)?.qty>0?1:0);
+    const u={...tr,[id]:Math.max(0,Math.min(3,cur+d))};
+    setTr(u);save(cmps,u,inr);
+  };
+
+  if(!loaded)return(
+    <div style={{background:"#070707",height:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <span style={{color:"#222",fontFamily:"monospace",fontSize:10,letterSpacing:6}}>LOADING</span>
+    </div>
+  );
+
+  const E=ASSETS.map(a=>{
+    const cmp=cmps[a.id]??a.cmp;
+    const tranche=tr[a.id]??(a.qty>0?1:0);
+    const s=calcSig(a,cmp,tranche,inr);
+    const isFree=!!a.free;
+    const invINR=isFree?0:(a.inv!=null?a.inv:(a.qty>0?toI(a,a.avg,inr)*a.qty:0));
+    const valINR=a.cv!=null?a.cv:(a.qty>0?toI(a,cmp,inr)*a.qty:0);
+    const pnlINR=isFree?valINR:(invINR>0?valINR-invINR:null);
+    const pnlPct=isFree?100:(invINR>0?pct(valINR,invINR):null);
+    const gapPct=a.buyAt&&!s.blocked?pct(cmp,a.buyAt):null;
+    return{...a,cmp,tranche,sig:s,invINR,valINR,pnlINR,pnlPct,gapPct,isFree};
+  });
+
+  const totI=E.reduce((s,a)=>s+(a.invINR||0),0);
+  const totV=E.reduce((s,a)=>s+(a.valINR||0),0);
+  const totP=totV-totI,totPct=totI>0?pct(totV,totI):0;
+  const cE=E.filter(a=>a.core);
+  const cI=cE.reduce((s,a)=>s+(a.invINR||0),0);
+  const cV=cE.reduce((s,a)=>s+(a.valINR||0),0);
+  const cP=cV-cI,cPct=cI>0?pct(cV,cI):0;
+  const act=E.filter(a=>a.core&&!a.sig.blocked).sort((a,b)=>b.sig.sc-a.sig.sc);
+  const blk=E.filter(a=>a.core&&a.sig.blocked);
+
+  const bg="#070707",ca="#0d0d0d",li="#181818",di="#2a2a2a",mu="#555",sb="#888",wh="#eee",g="#00ff88",rd="#ff4444";
+
+  const SIG_ORDER=["STRONG BUY","BUY","ACCUM"];
+  const SIG_COL={"STRONG BUY":"#00ff88","BUY":"#4ade80","ACCUM":"#ffd700"};
+  const SIG_PCT={"STRONG BUY":0.50,"BUY":0.30,"ACCUM":0.15};
+
+  const EVENTS=[
+    {e:"🏦 HDFCBANK Q4",t:"Done ✅",imp:"HIGH",n:"Beat · NPA 1.15% · div ₹13 · +3-5% Monday",done:true},
+    {e:"⚠️ CDSL Blackout",t:"Apr 24 · 4d",imp:"HIGH",n:"Last chance to add CDSL · GTTs may not fill",urgent:true},
+    {e:"⚠️ META Blackout",t:"Apr 26 · 6d",imp:"HIGH",n:"Hard stop META · GTTs $645+$665 must fill before",urgent:true},
+    {e:"📊 CDSL Earnings",t:"Apr 27",imp:"HIGH",n:"Beat expected · post-blackout resume if dip"},
+    {e:"📊 META+GOOGL Earnings",t:"Apr 29",imp:"HIGH",n:"Best dip of Q2 if miss · keep war chest ready"},
+    {e:"🛑 Stop KAYNES Buys",t:"May 11",imp:"MED",n:"3 days before earnings · stop all KAYNES buying"},
+    {e:"📊 KAYNES Earnings",t:"May 14",imp:"HIGH",n:"Last Q -37% · beat=buy · miss=GTT ₹3300 fills"},
+    {e:"🚀 NVDA Earnings",t:"May 20",imp:"MED",n:"P3 done · just watch"},
+    {e:"🔴 US Window Closes",t:"Jul 24",imp:"HIGH",n:"S122 expires · US entries get expensive"},
+    {e:"🚨 Crypto Peak",t:"Oct 2026",imp:"HIGH",n:"ETH above ₹10L → sell 50% immediately"},
+  ];
+
+  const renderPortfolio=(isCore)=>{
+    const sub=E.filter(a=>isCore?a.core:!a.core);
+    const tI=sub.reduce((s,a)=>s+(a.invINR||0),0);
+    const tV=sub.reduce((s,a)=>s+(a.valINR||0),0);
+    const tP=tV-tI,tPc=tI>0?pct(tV,tI):0;
+    return(
+      <div style={{paddingBottom:60}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",borderBottom:`1px solid ${li}`,background:ca}}>
+          {[{l:"INVESTED",v:fi(tI),cl:sb},{l:"CURRENT",v:fi(tV),cl:wh},{l:"P&L",v:(tP>=0?"+":"")+fi(tP),s:(tPc>=0?"+":"")+tPc.toFixed(1)+"%",cl:tP>=0?g:rd}].map((x,i)=>(
+            <div key={x.l} style={{padding:"10px 12px",borderRight:i<2?`1px solid ${li}`:"none"}}>
+              <div style={{fontSize:7,color:mu,letterSpacing:2,marginBottom:4}}>{x.l}</div>
+              <div style={{fontSize:12,fontWeight:500,color:x.cl}}>{x.v}</div>
+              {x.s&&<div style={{fontSize:8,color:x.cl,opacity:.7,marginTop:2}}>{x.s}</div>}
+            </div>
+          ))}
+        </div>
+        {BKTS.map(bk=>{
+          const rows=sub.filter(a=>a.b===bk);
+          if(!rows.length)return null;
+          const bI=rows.reduce((s,a)=>s+(a.invINR||0),0);
+          const bV=rows.reduce((s,a)=>s+(a.valINR||0),0);
+          const bP=bV-bI,bPc=bI>0?pct(bV,bI):0;
+          const key=bk+(isCore?"c":"n"),open=catOpen[key]??false;
+          return(
+            <div key={bk} style={{borderBottom:`1px solid ${li}`}}>
+              <button onClick={()=>setCatOpen(p=>({...p,[key]:!open}))} style={{width:"100%",background:"none",border:"none",textAlign:"left",padding:"12px 16px",display:"grid",gridTemplateColumns:"24px 1fr auto auto",gap:8,alignItems:"center",cursor:"pointer"}}>
+                <span style={{fontSize:14}}>{BDOT[bk]}</span>
+                <div>
+                  <div style={{fontSize:11,color:wh,fontWeight:500}}>{BLAB[bk]}</div>
+                  <div style={{fontSize:7,color:mu,marginTop:1}}>{rows.length} holdings</div>
+                </div>
+                <div style={{textAlign:"right",marginRight:8}}>
+                  <div style={{fontSize:11,color:wh}}>{fi(bV)}</div>
+                  <div style={{fontSize:8,color:bP>=0?g:rd,marginTop:1}}>{bP>=0?"+":""}{bPc.toFixed(1)}%</div>
+                </div>
+                <span style={{fontSize:10,color:mu,display:"inline-block",transform:open?"rotate(180deg)":"none"}}>▾</span>
+              </button>
+              {open&&(
+                <div style={{background:ca,borderTop:`1px solid ${li}`}}>
+                  {rows.map((a,i)=>(
+                    <div key={a.id} style={{padding:"10px 16px",borderTop:i>0?`1px solid ${li}`:"none",borderLeft:`3px solid ${a.sig.col}`}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+                        <div>
+                          <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:2}}>
+                            <span style={{fontSize:12,color:wh,fontWeight:500}}>{a.t}</span>
+                            {a.isFree&&<span style={{fontSize:6,color:"#ffd700",background:"#ffd70015",border:"1px solid #ffd70035",borderRadius:2,padding:"1px 5px",fontWeight:700}}>🎁 FREE</span>}
+                            {a.frozen&&<span style={{fontSize:6,color:"#60a5fa",background:"#60a5fa15",border:"1px solid #60a5fa35",borderRadius:2,padding:"1px 5px"}}>🔒</span>}
+                            <span style={{fontSize:8,color:mu}}>{a.n}</span>
+                          </div>
+                          {a.rot&&<div style={{fontSize:7,color:a.isFree?"#ffd700":"#f97316",marginTop:1}}>{a.rot}</div>}
+                        </div>
+                        {a.isFree?(
+                          <span style={{fontSize:8,color:"#ffd700",background:"#ffd70018",borderRadius:3,padding:"2px 7px"}}>🎁 FREE</span>
+                        ):a.pnlPct!=null&&(
+                          <span style={{fontSize:8,color:a.pnlPct>=0?g:rd,background:a.pnlPct>=0?"#00ff8812":"#ff444412",border:`1px solid ${a.pnlPct>=0?g:rd}30`,borderRadius:3,padding:"2px 7px"}}>{a.pnlPct>=0?"+":""}{a.pnlPct.toFixed(1)}%</span>
+                        )}
+                      </div>
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"4px",marginBottom:6}}>
+                        {[
+                          {l:"QTY",v:a.qty>0?(a.qty<10?a.qty.toFixed(4):a.qty<100?a.qty.toFixed(2):Math.round(a.qty)):"—"},
+                          {l:"AVG",v:a.qty>0&&a.avg>0?fc(a.c,a.avg):"—"},
+                          {l:"CMP",v:fc(a.c,a.cmp)},
+                          {l:"INVESTED",v:a.isFree?"🎁 FREE":a.invINR>0?fi(a.invINR):"—",cl:a.isFree?"#ffd700":sb},
+                          {l:"CURRENT",v:a.valINR>0?fi(a.valINR):"—",bold:1},
+                          {l:"P&L",v:a.isFree?"+"+fi(a.pnlINR||0):a.pnlINR!=null?(a.pnlINR>=0?"+":"")+fi(a.pnlINR):"—",cl:a.isFree?"#ffd700":a.pnlINR!=null?(a.pnlINR>=0?g:rd):mu},
+                        ].map(f=>(
+                          <div key={f.l}>
+                            <div style={{fontSize:6,color:mu,letterSpacing:1.5,marginBottom:2}}>{f.l}</div>
+                            <div style={{fontSize:10,color:f.cl||sb,fontWeight:f.bold?500:400}}>{f.v}</div>
+                          </div>
+                        ))}
+                      </div>
+                      {a.target>0&&(
+                        <div style={{display:"flex",alignItems:"center",gap:6}}>
+                          <span style={{fontSize:7,color:mu}}>🎯</span>
+                          <span style={{fontSize:9,color:"#a78bfa",fontWeight:500}}>{fc(a.c,a.target)}</span>
+                          <span style={{fontSize:7,color:mu}}>(+{((a.target-a.cmp)/a.cmp*100).toFixed(0)}% upside)</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  return(
+    <div style={{background:bg,minHeight:"100vh",fontFamily:"monospace",fontSize:12,color:"#bbb",paddingBottom:60}}>
+      <style>{`*{box-sizing:border-box;margin:0;padding:0}::-webkit-scrollbar{display:none}button{cursor:pointer;font-family:monospace}@keyframes bl{0%,100%{opacity:1}50%{opacity:.3}}.bl{animation:bl 2s infinite}`}</style>
+
+      <div style={{position:"sticky",top:0,zIndex:99,background:bg,borderBottom:`1px solid ${li}`}}>
+        <div style={{padding:"8px 14px",borderBottom:`1px solid ${li}`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+            <div style={{display:"flex",alignItems:"center",gap:6}}>
+              <span style={{fontSize:14,fontWeight:700,color:wh}}>LT_PF</span>
+              <span style={{fontSize:6,color:g,background:"#00ff8812",borderRadius:2,padding:"1px 5px"}}>Apr 20 2026</span>
+            </div>
+            <span style={{fontSize:7,color:mu}}>ALL: <span style={{color:totP>=0?g:rd}}>{totP>=0?"+":""}{fi(totP)} ({totPct>=0?"+":""}{totPct.toFixed(1)}%)</span></span>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",background:"#0a0a0a",borderRadius:8,border:`1px solid ${li}`,overflow:"hidden"}}>
+            {[{l:"CORE INV",v:fi(cI),cl:sb},{l:"CORE NOW",v:fi(cV),cl:wh},{l:"CORE P&L",v:(cP>=0?"+":"")+fi(cP),s:(cPct>=0?"+":"")+cPct.toFixed(1)+"%",cl:cP>=0?g:rd}].map((x,i)=>(
+              <div key={x.l} style={{padding:"8px 10px",borderRight:i<2?`1px solid ${li}`:"none"}}>
+                <div style={{fontSize:6,color:mu,letterSpacing:1.5,marginBottom:2}}>{x.l}</div>
+                <div style={{fontSize:11,fontWeight:700,color:x.cl}}>{x.v}</div>
+                {x.s&&<div style={{fontSize:7,color:x.cl,opacity:.7,marginTop:1}}>{x.s}</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",borderBottom:`1px solid ${li}`}}>
+          {[{e:"🇺🇸",l:"US",v:"$559",s:"16 GTTs deployed",cl:"#4ade80"},{e:"₿",l:"CRYPTO",v:"₹0",s:"2 GTTs ₹25K each",cl:"#f97316"},{e:"🇮🇳",l:"NSE",v:fi(100000),s:"GTTs + ₹20K Rule6",cl:"#60a5fa"}].map((w,i)=>(
+            <div key={w.l} style={{padding:"8px 10px",borderRight:i<2?`1px solid ${li}`:"none"}}>
+              <div style={{fontSize:7,color:mu,marginBottom:2}}>{w.e} {w.l}</div>
+              <div style={{fontSize:12,fontWeight:700,color:w.cl}}>{w.v}</div>
+              <div style={{fontSize:6,color:di,marginTop:1}}>{w.s}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{display:"flex",overflowX:"auto",borderBottom:`1px solid ${li}`}}>
+          {[
+            {l:"⚠️ CDSL",d:"Blackout Apr 24 · 4d · GTTs ₹1200+₹1150+₹1100"},
+            {l:"META",d:"GTTs $645+$665 · blackout Apr 26"},
+            {l:"GOOGL",d:"GTT $315 · earnings Apr 29"},
+            {l:"KAYNES",d:"GTT ₹3300 · stop May 11"},
+            {l:"ETH",d:"GTTs ₹208K+₹200K live"},
+            {l:"HDFC ✅",d:"Q4 beat · NPA 1.15% · div ₹13"},
+          ].map((o,i)=>(
+            <div key={i} style={{padding:"5px 12px",borderRight:`1px solid ${li}`,whiteSpace:"nowrap",flexShrink:0}}>
+              <span className="bl" style={{fontSize:7,color:"#f97316",marginRight:4}}>●</span>
+              <span style={{fontSize:8,color:sb,marginRight:4}}>{o.l}</span>
+              <span style={{fontSize:8,color:"#bbb"}}>{o.d}</span>
+            </div>
+          ))}
+          <div style={{padding:"5px 12px",flexShrink:0,display:"flex",alignItems:"center",gap:3}}>
+            <span style={{fontSize:7,color:mu}}>₹/$</span>
+            <input style={{width:28,fontSize:9,color:sb,background:"transparent",border:"none",outline:"none",fontFamily:"monospace"}} value={inr} onChange={e=>setInr(+e.target.value||86)} onBlur={()=>save(cmps,tr,inr)}/>
+          </div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",background:ca}}>
+          {[{id:"signal",l:"BUY MASTER",i:"⚡"},{id:"macro",l:"MACRO",i:"🌍"},{id:"core",l:"CORE",i:"🏛"},{id:"noncore",l:"NON-CORE",i:"🔄"}].map((t,idx)=>{
+            const isA=tab===t.id;
+            const ac=t.id==="core"?g:t.id==="noncore"?"#f97316":t.id==="macro"?"#a78bfa":"#60a5fa";
+            return(
+              <button key={t.id} onClick={()=>setTab(t.id)} style={{background:"none",border:"none",borderRight:idx<3?`1px solid ${li}`:"none",borderBottom:`2px solid ${isA?ac:"transparent"}`,padding:"7px 4px",textAlign:"center"}}>
+                <div style={{fontSize:11,marginBottom:1}}>{t.i}</div>
+                <div style={{fontSize:7,letterSpacing:1,color:isA?ac:mu,fontWeight:isA?700:400}}>{t.l}</div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {tab==="core"&&renderPortfolio(true)}
+      {tab==="noncore"&&renderPortfolio(false)}
+
+      {tab==="macro"&&(
+        <div style={{padding:12,paddingBottom:60}}>
+          <div style={{borderRadius:10,background:ca,border:"1px solid #a78bfa33",overflow:"hidden",marginBottom:12}}>
+            <div style={{padding:"10px 14px"}}>
+              <div style={{fontSize:7,color:"#a78bfa",letterSpacing:2,fontWeight:700,marginBottom:6}}>🗓 JOURNEY — Day 29 · ₹40L → ₹1Cr by 2030</div>
+              <div style={{height:6,background:"#111",borderRadius:3,overflow:"hidden",marginBottom:8}}>
+                <div style={{width:"1.9%",height:"100%",background:"linear-gradient(90deg,#a78bfa,#00ff88)",borderRadius:3}}/>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr"}}>
+                {[{l:"DAY",v:"29",cl:g},{l:"LEFT",v:"1432d",cl:"#a78bfa"},{l:"ETH PEAK",v:"163d",cl:"#ff4444"},{l:"US WIN",v:"95d",cl:"#f97316"}].map((x,i)=>(
+                  <div key={x.l} style={{textAlign:"center",borderRight:i<3?`1px solid ${li}`:"none",padding:"6px 0"}}>
+                    <div style={{fontSize:6,color:mu,marginBottom:2}}>{x.l}</div>
+                    <div style={{fontSize:13,fontWeight:700,color:x.cl}}>{x.v}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div style={{borderRadius:10,background:ca,border:`1px solid ${li}`,overflow:"hidden",marginBottom:12}}>
+            <div style={{padding:"10px 14px",borderBottom:`1px solid ${li}`,fontSize:7,color:mu,letterSpacing:2}}>📅 KEY EVENTS & DECISIONS</div>
+            {EVENTS.map((e,i)=>(
+              <div key={i} style={{padding:"10px 14px",borderBottom:i<EVENTS.length-1?`1px solid ${li}`:"none",borderLeft:e.done?"3px solid #00ff88":e.urgent?"3px solid #ffd700":"3px solid transparent",background:e.urgent?"#ffd70008":"transparent"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:3}}>
+                  <span style={{fontSize:9,color:e.done?g:e.urgent?"#ffd700":wh,fontWeight:600}}>{e.e}</span>
+                  <div style={{display:"flex",gap:4,marginLeft:8,flexShrink:0}}>
+                    <span style={{fontSize:6,color:e.imp==="HIGH"?"#ef4444":"#ffd700",background:e.imp==="HIGH"?"#ef444418":"#ffd70018",borderRadius:3,padding:"1px 5px"}}>{e.imp}</span>
+                    <span style={{fontSize:6,color:e.done?g:e.urgent?"#ffd700":"#555",background:e.done?"#00ff8818":e.urgent?"#ffd70018":"#111",borderRadius:3,padding:"1px 5px"}}>{e.t}</span>
+                  </div>
+                </div>
+                <div style={{fontSize:7,color:sb,lineHeight:1.5}}>{e.n}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{borderRadius:10,background:ca,border:"1px solid #ffd70035",overflow:"hidden",marginBottom:12}}>
+            <div style={{padding:"10px 14px",borderBottom:"1px solid #ffd70025",fontSize:7,color:"#ffd700",letterSpacing:2,fontWeight:700}}>🎯 BULLS EYE PROGRESS</div>
+            {[
+              {l:"✅ NVDA P3",cur:10.045,tgt:10,u:"sh",n:"COMPLETE 🏆"},
+              {l:"🔥 ETH",cur:1.147,tgt:2.0,u:"ETH",n:"gap 0.853 · GTTs live"},
+              {l:"🔥 KAYNES",cur:18,tgt:25,u:"qty",n:"GTT ₹3300 · May 14"},
+              {l:"META P1B #1",cur:0.359,tgt:1.5,u:"sh",n:"GTTs $645+$665"},
+              {l:"GOOGL P1B #2",cur:0.442,tgt:2.0,u:"sh",n:"GTT $315"},
+              {l:"CDSL P1B #3",cur:67,tgt:100,u:"qty",n:"BLACKOUT APR 24 🔥"},
+              {l:"BTC",cur:0,tgt:0,u:"—",n:"wait below ₹60L"},
+            ].map((w,i)=>(
+              <div key={i} style={{padding:"10px 14px",borderBottom:i<6?`1px solid ${li}`:"none"}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                  <span style={{fontSize:9,color:"#ffd700",fontWeight:700}}>{w.l}</span>
+                  <span style={{fontSize:7,color:"#a78bfa"}}>{w.n}</span>
+                </div>
+                {w.tgt>0&&<>
+                  <div style={{fontSize:7,color:mu,marginBottom:3}}>{w.cur} / {w.tgt} {w.u}</div>
+                  <div style={{height:4,background:di,borderRadius:2,overflow:"hidden"}}>
+                    <div style={{width:`${Math.min(100,(w.cur/w.tgt)*100)}%`,height:"100%",background:"#ffd700",borderRadius:2}}/>
+                  </div>
+                </>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {tab==="signal"&&(
+        <div style={{paddingBottom:60}}>
+          <div style={{display:"grid",gridTemplateColumns:"3px 1fr 72px 58px 44px 34px",padding:"7px 12px",background:ca,borderBottom:`1px solid ${li}`,position:"sticky",top:183,zIndex:50}}>
+            {["","ASSET","CMP","SIGNAL","SCORE","TR"].map((h,i)=>(
+              <div key={i} style={{fontSize:7,color:mu,letterSpacing:2,paddingLeft:i===1?6:0,textAlign:i>=4?"center":"left"}}>{h}</div>
+            ))}
+          </div>
+          {SIG_ORDER.map(st=>{
+            const rows=act.filter(a=>a.sig.tag===st);
+            if(!rows.length)return null;
+            const sc=SIG_COL[st];
+            return(
+              <div key={st}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 14px",background:sc+"0a",borderTop:`1px solid ${sc}25`,borderBottom:`1px solid ${sc}25`}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <div style={{width:8,height:8,borderRadius:1,background:sc}}/>
+                    <span style={{fontSize:8,color:sc,fontWeight:700}}>{st}</span>
+                    <span style={{fontSize:7,color:mu}}>({rows.length})</span>
+                  </div>
+                  <span style={{fontSize:7,color:mu}}>{Math.round(SIG_PCT[st]*100)}% war chest</span>
+                </div>
+                {rows.map(a=>{
+                  const isO=exp===a.id;
+                  const warINR=a.b==="US"?559*inr:a.b==="CRYPTO"?0:100000;
+                  const bp=a.buyAt?toI(a,a.buyAt,inr):toI(a,a.cmp,inr);
+                  const sq=bp>0?(warINR*SIG_PCT[st]/bp):0;
+                  const sqf=a.c==="$"?sq.toFixed(4):sq<1?sq.toFixed(2):Math.floor(sq);
+                  const gc=a.gapPct!=null?(a.gapPct<=0?g:a.gapPct<3?"#ffd700":"#f97316"):mu;
+                  return(
+                    <div key={a.id} style={{borderBottom:`1px solid ${li}`}}>
+                      <button onClick={()=>setExp(isO?null:a.id)} style={{display:"grid",gridTemplateColumns:"3px 1fr 72px 58px 44px 34px",width:"100%",background:"none",border:"none",padding:0,textAlign:"left",alignItems:"center",minHeight:52}}>
+                        <div style={{height:"100%",background:a.sig.col,minHeight:52,opacity:.9}}/>
+                        <div style={{padding:"7px 6px"}}>
+                          <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:1}}>
+                            <span style={{fontSize:11,color:wh,fontWeight:600}}>{a.n}</span>
+                            {P3[a.id]&&<span style={{fontSize:6,color:g,background:"#00ff8818",border:"1px solid #00ff8830",borderRadius:2,padding:"1px 4px"}}>🔥P3</span>}
+                            {!P3[a.id]&&BE[a.id]&&<span style={{fontSize:6,color:"#ffd700",background:"#ffd70018",border:"1px solid #ffd70030",borderRadius:2,padding:"1px 4px"}}>🎯</span>}
+                          </div>
+                          <div style={{fontSize:7,color:GR[a.id]?g:"#555",fontWeight:700,marginBottom:1}}>{GR[a.id]?"● GROWTH":"● STABLE"}</div>
+                          <div style={{fontSize:8,color:mu}}>{BDOT[a.b]} {a.t}{a.pnlPct!=null&&<span style={{color:a.pnlPct>=0?g:rd,marginLeft:4}}>{a.pnlPct>=0?"+":""}{a.pnlPct.toFixed(1)}%</span>}</div>
+                          {WIN[a.b]&&<div style={{fontSize:6,color:"#f97316",marginTop:1}}>⏰ {WIN[a.b]}</div>}
+                        </div>
+                        <div style={{fontSize:11,color:wh,textAlign:"right",paddingRight:6}}>
+                          {fc(a.c,a.cmp)}
+                          {a.gapPct!=null&&<div style={{fontSize:7,color:gc,marginTop:1}}>{a.gapPct<=0?"✓":a.gapPct.toFixed(1)+"%"}</div>}
+                          <div style={{fontSize:6,color:mu,marginTop:1}}>{fc(a.c,a.low||0)}–{fc(a.c,a.high||0)}</div>
+                        </div>
+                        <div style={{textAlign:"center",padding:"0 2px"}}>
+                          <span style={{fontSize:6,color:a.sig.col,background:a.sig.col+"18",border:`1px solid ${a.sig.col}35`,borderRadius:3,padding:"2px 3px",display:"inline-block",fontWeight:700}}>{a.sig.tag}</span>
+                          {sqf>0&&<div style={{fontSize:7,color:a.sig.col,fontWeight:700,marginTop:2}}>{sqf}</div>}
+                        </div>
+                        <div style={{fontSize:12,color:wh,textAlign:"center",fontWeight:700}}>{a.sig.sc}</div>
+                        <div style={{display:"flex",gap:2,justifyContent:"center"}}>
+                          {[0,1,2].map(j=><div key={j} style={{width:7,height:7,borderRadius:1,background:j<a.tranche?a.sig.col:di}}/>)}
+                        </div>
+                      </button>
+                      {isO&&(
+                        <div style={{background:ca,borderTop:`1px solid ${li}`,padding:"12px 14px"}}>
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                            <span style={{fontSize:8,color:mu,letterSpacing:2}}>UPDATE CMP</span>
+                            {edit===a.id?(
+                              <input autoFocus value={ev} onChange={e=>setEv(e.target.value)}
+                                onKeyDown={e=>{if(e.key==="Enter"){saveCmp(a.id,ev);setEdit(null);setEv("");}if(e.key==="Escape"){setEdit(null);setEv("");}}}
+                                onBlur={()=>{if(ev)saveCmp(a.id,ev);setEdit(null);setEv("");}}
+                                style={{width:110,fontSize:13,color:wh,background:"#111",border:"1px solid #333",borderRadius:5,padding:"4px 8px",textAlign:"right",fontFamily:"monospace",outline:"none"}}/>
+                            ):(
+                              <button onClick={()=>{setEdit(a.id);setEv(String(a.cmp));}} style={{background:"#111",border:"1px solid #333",borderRadius:5,padding:"5px 12px",color:wh,fontSize:13,fontWeight:600}}>{fc(a.c,a.cmp)} ✎</button>
+                            )}
+                          </div>
+                          {a.note&&<div style={{marginBottom:10,padding:"8px 10px",background:"#ffd70010",borderRadius:6,border:"1px solid #ffd70035",fontSize:7,color:"#ffd700",lineHeight:1.6}}>{a.note}</div>}
+                          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+                            {[
+                              {l:"LIMIT ORDER",v:a.buyAt?fc(a.c,a.buyAt):"—",s:a.gapPct!=null?(a.gapPct<=0?"✓ in range":`${a.gapPct.toFixed(1)}% away`):"",cl:"#ffd700"},
+                              {l:"SUGGEST QTY",v:`${sqf} ${a.c==="$"?"sh":"qty"}`,s:"≈ "+fi(Math.round(warINR*SIG_PCT[st])),cl:a.sig.col},
+                              {l:"P&L",v:a.pnlINR!=null?(a.pnlINR>=0?"+":"")+fi(a.pnlINR):"fresh",s:a.pnlPct!=null?`${a.pnlPct>=0?"+":""}${a.pnlPct.toFixed(1)}%`:"",cl:a.pnlINR!=null?(a.pnlINR>=0?g:rd):mu},
+                              {l:"5YR TARGET",v:fc(a.c,a.target),s:`+${((a.target-a.cmp)/a.cmp*100).toFixed(0)}% upside`,cl:"#a78bfa"},
+                            ].map(x=>(
+                              <div key={x.l} style={{background:"#111",borderRadius:6,padding:"8px 10px"}}>
+                                <div style={{fontSize:7,color:mu,letterSpacing:2,marginBottom:4}}>{x.l}</div>
+                                <div style={{fontSize:12,color:x.cl,fontWeight:600}}>{x.v}</div>
+                                {x.s&&<div style={{fontSize:7,color:mu,marginTop:2}}>{x.s}</div>}
+                              </div>
+                            ))}
+                          </div>
+                          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"#111",borderRadius:6,padding:"10px 12px"}}>
+                            <div>
+                              <div style={{fontSize:7,color:mu,letterSpacing:2,marginBottom:5}}>TRANCHES</div>
+                              <div style={{display:"flex",gap:6}}>{[0,1,2].map(j=><div key={j} style={{width:28,height:8,borderRadius:2,background:j<a.tranche?a.sig.col:di}}/>)}</div>
+                            </div>
+                            <div style={{display:"flex",gap:8}}>
+                              <button onClick={e=>{e.stopPropagation();bumTr(a.id,-1);}} style={{width:36,height:36,borderRadius:8,background:di,border:"none",color:"#bbb",fontSize:18}}>−</button>
+                              <button onClick={e=>{e.stopPropagation();bumTr(a.id,+1);}} style={{width:36,height:36,borderRadius:8,background:a.sig.col+"22",border:`1px solid ${a.sig.col}44`,color:a.sig.col,fontSize:18}}>+</button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+          {act.filter(a=>a.sig.tag==="PREMIUM").length>0&&(
+            <>
+              <div style={{padding:"8px 14px",background:"#0d0900",borderTop:"1px solid #f9731625",borderBottom:"1px solid #f9731625",display:"flex",alignItems:"center",gap:8}}>
+                <div style={{width:8,height:8,borderRadius:1,background:"#f97316"}}/>
+                <span style={{fontSize:8,color:"#f97316",fontWeight:700}}>PREMIUM — WAIT FOR DIP</span>
+              </div>
+              {act.filter(a=>a.sig.tag==="PREMIUM").map(a=>(
+                <div key={a.id} style={{display:"grid",gridTemplateColumns:"3px 1fr 90px 70px",borderBottom:`1px solid ${li}`,opacity:.6,minHeight:46,alignItems:"center"}}>
+                  <div style={{height:"100%",minHeight:46,background:"#f97316",opacity:.6}}/>
+                  <div style={{padding:"7px 6px"}}>
+                    <div style={{fontSize:11,color:wh,fontWeight:500}}>{a.n}</div>
+                    <div style={{fontSize:7,color:"#f97316",marginTop:1}}>above zone · wait</div>
+                  </div>
+                  <div style={{textAlign:"right",paddingRight:8,fontSize:11,color:wh}}>{fc(a.c,a.cmp)}</div>
+                  <div style={{textAlign:"center",padding:"0 6px"}}>
+                    {a.pnlPct!=null&&<div style={{fontSize:9,color:a.pnlPct>=0?g:rd,fontWeight:600}}>{a.pnlPct>=0?"+":""}{a.pnlPct.toFixed(1)}%</div>}
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+          {blk.length>0&&(
+            <div style={{margin:"12px",borderRadius:10,border:"1px solid #60a5fa22",overflow:"hidden"}}>
+              <button onClick={()=>setBlkOpen(o=>!o)} style={{width:"100%",background:"#060c1a",border:"none",padding:"10px 14px",display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{fontSize:10}}>🔒</span>
+                  <span style={{fontSize:8,color:"#60a5fa",letterSpacing:2,fontWeight:700}}>BLOCKED POSITIONS</span>
+                  <span style={{fontSize:7,color:mu,background:"#60a5fa18",borderRadius:3,padding:"1px 6px"}}>{blk.length}</span>
+                </div>
+                <span style={{fontSize:10,color:"#60a5fa"}}>{blkOpen?"▲":"▼"}</span>
+              </button>
+              {blkOpen&&blk.map(a=>(
+                <div key={a.id} style={{display:"grid",gridTemplateColumns:"3px 1fr 90px 70px",borderTop:`1px solid ${li}`,minHeight:48,alignItems:"center"}}>
+                  <div style={{height:"100%",minHeight:48,background:a.sig.col||"#60a5fa"}}/>
+                  <div style={{padding:"6px 8px"}}>
+                    <div style={{fontSize:10,color:sb,fontWeight:500}}>{a.n}</div>
+                    <div style={{fontSize:7,color:a.sig.col||"#60a5fa",marginTop:1}}>{a.sig.tag}</div>
+                    <div style={{fontSize:6,color:di,marginTop:1}}>{a.sig.reason||a.fn||"Hold"}</div>
+                  </div>
+                  <div style={{textAlign:"right",paddingRight:8,fontSize:10,color:sb}}>{fc(a.c,a.cmp)}</div>
+                  <div style={{textAlign:"center",padding:"0 6px"}}>
+                    {a.pnlPct!=null&&<div style={{fontSize:9,color:a.pnlPct>=0?g:rd,fontWeight:600}}>{a.pnlPct>=0?"+":""}{a.pnlPct.toFixed(1)}%</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      <div style={{padding:"16px 0",textAlign:"center",fontSize:7,color:di,letterSpacing:2}}>PERSONAL TRACKING · NOT SEBI ADVICE · APR 20 2026</div>
+    </div>
+  );
+}
